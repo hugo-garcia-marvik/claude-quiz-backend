@@ -9,6 +9,8 @@ Unofficial study material covering the five exam domains:
 5. Context Management & Reliability (15%)
 """
 
+from typing import Any, Dict, List, Optional
+
 QUESTIONS = [
     {
         "id": 1,
@@ -205,9 +207,6 @@ QUESTIONS = [
         ),
     },
 ]
-
-
-from typing import Any, Dict, List, Optional
 
 
 def get_questions_public() -> List[Dict[str, Any]]:
