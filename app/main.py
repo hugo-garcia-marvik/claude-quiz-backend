@@ -141,7 +141,7 @@ def leaderboard(limit: int = 10, db: Session = Depends(get_db)):
     limit = max(1, min(limit, 50))
     rows = (
         db.query(Score)
-        .order_by(desc(Score.score), Score.created_at)
+        .order_by(desc(Score.score), desc(Score.created_at))
         .limit(limit)
         .all()
     )
