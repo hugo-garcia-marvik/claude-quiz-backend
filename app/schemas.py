@@ -22,7 +22,7 @@ class AnswerItem(BaseModel):
 
 
 class SubmitRequest(BaseModel):
-    player_name: str = Field(min_length=1, max_length=80)
+    player_name: str = Field(max_length=80)
     answers: list[AnswerItem]
 
 
