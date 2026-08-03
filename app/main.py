@@ -7,6 +7,7 @@ from app.database import Base, engine, get_db
 from app.models import Score
 from app.quiz_data import QUESTIONS, get_question_by_id, get_questions_public
 from app.schemas import (
+    PASS_THRESHOLD,
     AnswerResult,
     LeaderboardEntry,
     LeaderboardOut,
@@ -176,15 +177,19 @@ def leaderboard(limit: int = 10, db: Session = Depends(get_db)):
     # Apply limit after deduplication
     unique_rows = unique_rows[:limit]
 
-    entries = [
-        LeaderboardEntry(
-            rank=idx + 1,
-            player_name=row.player_name,
-            score=row.score,
-            total=row.total,
-            percentage=round((row.score / row.total) * 100, 1) if row.total else 0,
-            created_at=row.created_at,
+    entries = []
+    for idx, row in enumerate(unique_rows):
+        percentage = round((row.score / row.total) * 100, 1) if row.total else 0
+        entries.append(
+            LeaderboardEntry(
+                rank=idx + 1,
+                player_name=row.player_name,
+                score=row.score,
+                total=row.total,
+                percentage=percentage,
+                passed=percentage >= PASS_THRESHOLD,
+                pass_threshold=PASS_THRESHOLD,
+                created_at=row.created_at,
+            )
         )
-        for idx, row in enumerate(unique_rows)
-    ]
     return LeaderboardOut(entries=entries)

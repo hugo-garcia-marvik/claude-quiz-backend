@@ -2,6 +2,10 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
+# Pass threshold percentage — single source of truth used by both
+# the submit endpoint and the leaderboard.
+PASS_THRESHOLD: float = 70.0
+
 
 class QuestionOut(BaseModel):
     id: int
@@ -48,6 +52,8 @@ class LeaderboardEntry(BaseModel):
     score: int
     total: int
     percentage: float
+    passed: bool
+    pass_threshold: float
     created_at: datetime
 
 
