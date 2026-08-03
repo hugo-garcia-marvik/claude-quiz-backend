@@ -1,12 +1,13 @@
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import desc
+from sqlalchemy import desc, func
 from sqlalchemy.orm import Session
 
 from app.database import Base, engine, get_db
 from app.models import Score
 from app.quiz_data import QUESTIONS, get_question_by_id, get_questions_public
 from app.schemas import (
+    PASS_THRESHOLD,
     AnswerResult,
     LeaderboardEntry,
     LeaderboardOut,
@@ -139,21 +140,56 @@ def submit_quiz(payload: SubmitRequest, db: Session = Depends(get_db)):
 @app.get("/api/leaderboard", response_model=LeaderboardOut)
 def leaderboard(limit: int = 10, db: Session = Depends(get_db)):
     limit = max(1, min(limit, 50))
+
+    # Sub-query: best score per player, with most recent attempt as tie-breaker
+    best_per_player = (
+        db.query(
+            Score.player_name,
+            func.max(Score.score).label("best_score"),
+        )
+        .group_by(Score.player_name)
+        .subquery()
+    )
+
+    # Join back to get the full row for the best attempt per player.
+    # When a player has multiple rows with the same best score, pick the
+    # most recent one (max created_at).
     rows = (
         db.query(Score)
-        .order_by(desc(Score.score), Score.created_at)
-        .limit(limit)
+        .join(
+            best_per_player,
+            (Score.player_name == best_per_player.c.player_name)
+            & (Score.score == best_per_player.c.best_score),
+        )
+        .order_by(desc(Score.score), desc(Score.created_at))
         .all()
     )
-    entries = [
-        LeaderboardEntry(
-            rank=idx + 1,
-            player_name=row.player_name,
-            score=row.score,
-            total=row.total,
-            percentage=round((row.score / row.total) * 100, 1) if row.total else 0,
-            created_at=row.created_at,
+
+    # Deduplicate in Python in case a player has multiple rows with the
+    # same best score (keep only the most recent one).
+    seen: set[str] = set()
+    unique_rows: list[Score] = []
+    for row in rows:
+        if row.player_name not in seen:
+            seen.add(row.player_name)
+            unique_rows.append(row)
+
+    # Apply limit after deduplication
+    unique_rows = unique_rows[:limit]
+
+    entries = []
+    for idx, row in enumerate(unique_rows):
+        percentage = round((row.score / row.total) * 100, 1) if row.total else 0
+        entries.append(
+            LeaderboardEntry(
+                rank=idx + 1,
+                player_name=row.player_name,
+                score=row.score,
+                total=row.total,
+                percentage=percentage,
+                passed=percentage >= PASS_THRESHOLD,
+                pass_threshold=PASS_THRESHOLD,
+                created_at=row.created_at,
+            )
         )
-        for idx, row in enumerate(rows)
-    ]
     return LeaderboardOut(entries=entries)
